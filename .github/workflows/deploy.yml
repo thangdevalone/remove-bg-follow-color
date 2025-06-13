@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - "backend/**"
+      - "nginx/**"
+      - "docker-compose.yml"
 
 jobs:
   install-dependencies:
@@ -42,50 +44,17 @@ jobs:
           docker build -t $IMAGE_NAME .
           docker push $IMAGE_NAME
 
-      - name: Deploy on EC2
-        uses: appleboy/ssh-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          script: |
-            echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
-
-            IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/remove-bg-backend:latest
-
-            # Stop old container if exists
-            docker stop remove-bg-backend-container || true
-            docker rm remove-bg-backend-container || true
-
-            # Pull latest image
-            docker pull $IMAGE_NAME
-
-            # Run container on port 5000 (internal)
-            docker run -d \
-              --name remove-bg-backend-container \
-              -p 5000:5000 \
-              --restart unless-stopped \
-              $IMAGE_NAME
-
-            # Install nginx if not exists
-            sudo apt-get update
-            sudo apt-get install -y nginx
-
-            # Clean up old images
-            docker image prune -f
-
-      - name: Copy and Configure Nginx
+      - name: Copy docker-compose and nginx configs
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          source: "backend/nginx.conf"
-          target: "/tmp/"
+          source: "docker-compose.yml,nginx/"
+          target: "/opt/remove-bg-app/"
 
-      - name: Setup Nginx Configuration
+      - name: Deploy with Docker Compose
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -93,21 +62,32 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
-            # Copy nginx config to sites-available with app-specific name
-            sudo cp /tmp/backend/nginx.conf /etc/nginx/sites-available/remove-bg-backend.conf
+            # Login to registry
+            echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
-            # Enable the site
-            sudo ln -sf /etc/nginx/sites-available/remove-bg-backend.conf /etc/nginx/sites-enabled/remove-bg-backend.conf
+            # Go to app directory
+            cd /opt/remove-bg-app
 
-            # Remove default nginx config if exists
-            sudo rm -f /etc/nginx/sites-enabled/default
+            # Create .env file
+            cat > .env <<EOF
+            GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
+            EOF
 
-            # Test nginx configuration
-            sudo nginx -t
+            # Create proxy network if not exists
+            docker network create proxy-network 2>/dev/null || echo "Network already exists"
 
-            # Restart nginx to apply new configuration
-            sudo systemctl restart nginx
-            sudo systemctl enable nginx
+            # Stop old containers
+            docker-compose down 2>/dev/null || true
 
-            # Clean up temp file
-            rm -f /tmp/backend/nginx.conf
+            # Pull latest images and start
+            docker-compose pull
+            docker-compose up -d
+
+            # Show status
+            echo "=== Deployment Status ==="
+            docker-compose ps
+            echo "=== Nginx Config Test ==="
+            docker exec nginx-main-proxy nginx -t || echo "Nginx test failed"
+
+            # Clean up old images
+            docker image prune -f
