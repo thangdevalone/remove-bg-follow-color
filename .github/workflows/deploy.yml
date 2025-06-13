@@ -71,7 +71,7 @@ jobs:
 
             # Show status
             echo "=== Deployment Status ==="
-            docker-compose ps
+            docker compose ps
             echo "=== Nginx Config Test ==="
             docker exec nginx-main-proxy nginx -t || echo "Nginx test failed"
             echo "=== Reloading Nginx ==="
