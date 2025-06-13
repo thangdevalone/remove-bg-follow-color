@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - ".github/deploy.yml"
       - "backend/**"
       - "nginx/**"
       - "docker-compose.yml"
