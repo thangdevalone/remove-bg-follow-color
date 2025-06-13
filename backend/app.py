@@ -16,43 +16,35 @@ app = Flask(__name__)
 CORS(app)
 
 def image_to_base64(image, format='PNG'):
-    """Convert PIL Image to base64 string"""
     buffer = io.BytesIO()
     image.save(buffer, format=format, quality=95 if format == 'JPEG' else None)
     img_str = base64.b64encode(buffer.getvalue()).decode()
     return f"data:image/{format.lower()};base64,{img_str}"
 
 def remove_color_background(image, target_color, tolerance=30):
-    """Remove background based on target color with tolerance"""
-    # Convert PIL to OpenCV format
     cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
     
-    # Convert target color from hex to BGR
     target_bgr = np.array([
         int(target_color[5:7], 16),  # B
         int(target_color[3:5], 16),  # G
         int(target_color[1:3], 16)   # R
     ])
     
-    # Create mask for the target color with tolerance
     lower_bound = np.maximum(target_bgr - tolerance, 0)
     upper_bound = np.minimum(target_bgr + tolerance, 255)
     
     mask = cv2.inRange(cv_image, lower_bound, upper_bound)
     
-    # Convert back to RGBA
     rgba_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGBA)
     
     # Apply mask (make matching pixels transparent)
     rgba_image[mask > 0] = [0, 0, 0, 0]
     
-    # Convert back to PIL
     result = Image.fromarray(rgba_image, 'RGBA')
     return result
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
     return jsonify({'status': 'healthy', 'message': 'Background removal service is running'})
 
 @app.route('/remove-background', methods=['POST'])
@@ -140,19 +132,15 @@ def remove_color_bg():
         if output_format not in ['PNG', 'JPEG', 'WEBP']:
             output_format = 'PNG'
         
-        # Validate color format
         if not target_color.startswith('#') or len(target_color) != 7:
             return jsonify({'error': 'Invalid color format. Use #RRGGBB'}), 400
         
-        # Read and convert the uploaded file to PIL Image
         image_data = file.read()
         print(f"Debug - Image data size: {len(image_data)} bytes")
         image = Image.open(io.BytesIO(image_data))
         
-        # Remove color background
         result_image = remove_color_background(image, target_color, tolerance)
         
-        # Convert to requested format
         if output_format == 'JPEG':
             # For JPEG, add white background
             background = Image.new('RGB', result_image.size, (255, 255, 255))
@@ -164,7 +152,6 @@ def remove_color_bg():
             if result_image.mode not in ['RGB', 'RGBA']:
                 result_image = result_image.convert('RGBA')
         
-        # Convert to base64
         result_base64 = image_to_base64(result_image, output_format)
         
         return jsonify({
