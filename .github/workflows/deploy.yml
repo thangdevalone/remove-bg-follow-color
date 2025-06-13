@@ -66,6 +66,12 @@ jobs:
             # Login to registry
             echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
+            # Create a new directory for the app
+            mkdir -p ~/remove-bg-app
+
+            # Move to the app directory
+            cd ~/remove-bg-app
+
             # Pull latest images and start
             docker compose pull
             docker compose up -d
