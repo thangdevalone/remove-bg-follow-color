@@ -8,24 +8,12 @@ import base64
 from rembg import remove
 import os
 from dotenv import load_dotenv
+from sklearn.cluster import KMeans
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
-
-def base64_to_image(base64_string):
-    """Convert base64 string to PIL Image"""
-    try:
-        # Remove the data URL prefix if present
-        if ',' in base64_string:
-            base64_string = base64_string.split(',')[1]
-        
-        image_data = base64.b64decode(base64_string)
-        image = Image.open(io.BytesIO(image_data))
-        return image
-    except Exception as e:
-        raise ValueError(f"Invalid base64 image: {str(e)}")
 
 def image_to_base64(image, format='PNG'):
     """Convert PIL Image to base64 string"""
@@ -71,26 +59,25 @@ def health_check():
 def remove_background():
     """Remove background using AI model"""
     try:
-        data = request.get_json()
+        # Check if file is in the request
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image file provided'}), 400
         
-        if not data or 'image' not in data:
-            return jsonify({'error': 'No image provided'}), 400
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({'error': 'No image file selected'}), 400
         
-        # Get optional parameters
-        output_format = data.get('format', 'PNG').upper()
+        # Get optional parameters from form data
+        output_format = request.form.get('format', 'PNG').upper()
         if output_format not in ['PNG', 'JPEG', 'WEBP']:
             output_format = 'PNG'
         
-        # Convert base64 to image
-        image = base64_to_image(data['image'])
+        # Read and convert the uploaded file to PIL Image
+        image_data = file.read()
+        image = Image.open(io.BytesIO(image_data))
         
         # Remove background using rembg
-        image_bytes = io.BytesIO()
-        image.save(image_bytes, format='PNG')
-        image_bytes.seek(0)
-        
-        # Process with rembg
-        output_bytes = remove(image_bytes.getvalue())
+        output_bytes = remove(image_data)
         result_image = Image.open(io.BytesIO(output_bytes))
         
         # Convert to requested format
@@ -100,6 +87,10 @@ def remove_background():
             if result_image.mode == 'RGBA':
                 background.paste(result_image, mask=result_image.split()[-1])
                 result_image = background
+        elif output_format == 'WEBP':
+            # Ensure WEBP supports the current mode
+            if result_image.mode not in ['RGB', 'RGBA']:
+                result_image = result_image.convert('RGBA')
         
         # Convert to base64
         result_base64 = image_to_base64(result_image, output_format)
@@ -118,15 +109,33 @@ def remove_background():
 def remove_color_bg():
     """Remove background based on specific color"""
     try:
-        data = request.get_json()
+        # Check if file is in the request
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image file provided'}), 400
         
-        if not data or 'image' not in data or 'color' not in data:
-            return jsonify({'error': 'Image and target color are required'}), 400
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({'error': 'No image file selected'}), 400
         
-        # Get parameters
-        target_color = data['color']  # Expected format: #RRGGBB
-        tolerance = data.get('tolerance', 30)
-        output_format = data.get('format', 'PNG').upper()
+        # Get parameters from form data
+        target_color = request.form.get('color')
+        if not target_color:
+            return jsonify({'error': 'Target color is required'}), 400
+            
+        tolerance_str = request.form.get('tolerance', '30')
+        try:
+            tolerance = int(float(tolerance_str)) if tolerance_str else 30
+            # Ensure tolerance is within valid range
+            tolerance = max(1, min(100, tolerance))
+        except (ValueError, TypeError):
+            tolerance = 30
+            
+        output_format = request.form.get('format', 'PNG').upper()
+        
+        # Debug logging
+        print(f"Debug - All form keys: {list(request.form.keys())}")
+        print(f"Debug - Color: {target_color}, Tolerance: {tolerance_str} -> {tolerance}, Format: {output_format}")
+        print(f"Debug - File info: {file.filename}")
         
         if output_format not in ['PNG', 'JPEG', 'WEBP']:
             output_format = 'PNG'
@@ -135,8 +144,10 @@ def remove_color_bg():
         if not target_color.startswith('#') or len(target_color) != 7:
             return jsonify({'error': 'Invalid color format. Use #RRGGBB'}), 400
         
-        # Convert base64 to image
-        image = base64_to_image(data['image'])
+        # Read and convert the uploaded file to PIL Image
+        image_data = file.read()
+        print(f"Debug - Image data size: {len(image_data)} bytes")
+        image = Image.open(io.BytesIO(image_data))
         
         # Remove color background
         result_image = remove_color_background(image, target_color, tolerance)
@@ -148,6 +159,10 @@ def remove_color_bg():
             if result_image.mode == 'RGBA':
                 background.paste(result_image, mask=result_image.split()[-1])
                 result_image = background
+        elif output_format == 'WEBP':
+            # Ensure WEBP supports the current mode
+            if result_image.mode not in ['RGB', 'RGBA']:
+                result_image = result_image.convert('RGBA')
         
         # Convert to base64
         result_base64 = image_to_base64(result_image, output_format)
@@ -168,13 +183,17 @@ def remove_color_bg():
 def get_dominant_colors():
     """Get dominant colors from image to help user choose background color"""
     try:
-        data = request.get_json()
+        # Check if file is in the request
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image file provided'}), 400
         
-        if not data or 'image' not in data:
-            return jsonify({'error': 'No image provided'}), 400
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({'error': 'No image file selected'}), 400
         
-        # Convert base64 to image
-        image = base64_to_image(data['image'])
+        # Read and convert the uploaded file to PIL Image
+        image_data = file.read()
+        image = Image.open(io.BytesIO(image_data))
         
         # Convert to RGB if needed
         if image.mode != 'RGB':
@@ -188,8 +207,6 @@ def get_dominant_colors():
         pixels = img_array.reshape(-1, 3)
         
         # Use k-means clustering to find dominant colors
-        from sklearn.cluster import KMeans
-        
         kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
         kmeans.fit(pixels)
         
