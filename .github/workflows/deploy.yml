@@ -61,12 +61,53 @@ jobs:
             # Pull latest image
             docker pull $IMAGE_NAME
 
-            # Run container
+            # Run container on port 5000 (internal)
             docker run -d \
               --name remove-bg-backend-container \
               -p 5000:5000 \
               --restart unless-stopped \
               $IMAGE_NAME
 
+            # Install nginx if not exists
+            sudo apt-get update
+            sudo apt-get install -y nginx
+
             # Clean up old images
             docker image prune -f
+
+      - name: Copy and Configure Nginx
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          source: "backend/nginx.conf"
+          target: "/tmp/"
+
+      - name: Setup Nginx Configuration
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            # Copy nginx config to sites-available with app-specific name
+            sudo cp /tmp/backend/nginx.conf /etc/nginx/sites-available/remove-bg-backend.conf
+
+            # Enable the site
+            sudo ln -sf /etc/nginx/sites-available/remove-bg-backend.conf /etc/nginx/sites-enabled/remove-bg-backend.conf
+
+            # Remove default nginx config if exists
+            sudo rm -f /etc/nginx/sites-enabled/default
+
+            # Test nginx configuration
+            sudo nginx -t
+
+            # Restart nginx to apply new configuration
+            sudo systemctl restart nginx
+            sudo systemctl enable nginx
+
+            # Clean up temp file
+            rm -f /tmp/backend/nginx.conf
