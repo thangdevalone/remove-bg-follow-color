@@ -52,7 +52,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           source: "docker-compose.yml,nginx/nginx.conf"
-          target: "./"
+          target: "remove-bg-app/"
 
       - name: Deploy with Docker Compose
         uses: appleboy/ssh-action@v0.1.7
@@ -65,18 +65,6 @@ jobs:
             # Login to registry
             echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
-            # Create proper symlinks for enabled sites
-            rm -f nginx/sites-enabled/*
-            ln -sf ../sites-available/nginx.conf nginx/sites-enabled/nginx.conf
-
-            # Create .env file
-            cat > .env <<EOF
-            GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
-            EOF
-
-            # Stop old containers
-            docker-compose down 2>/dev/null || true
-
             # Pull latest images and start
             docker-compose pull
             docker-compose up -d
@@ -86,6 +74,8 @@ jobs:
             docker-compose ps
             echo "=== Nginx Config Test ==="
             docker exec nginx-main-proxy nginx -t || echo "Nginx test failed"
+            echo "=== Reloading Nginx ==="
+            docker exec nginx-main-proxy nginx -s reload || docker restart nginx-main-proxy
 
             # Clean up old images
             docker image prune -f

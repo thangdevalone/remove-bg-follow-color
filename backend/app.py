@@ -15,6 +15,8 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+
+
 def image_to_base64(image, format='PNG'):
     buffer = io.BytesIO()
     image.save(buffer, format=format, quality=95 if format == 'JPEG' else None)
