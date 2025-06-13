@@ -21,10 +21,8 @@ services:
       - remove-bg-backend
 
   remove-bg-backend:
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/remove-bg-backend:latest
+    image: ghcr.io/thangdevalone/remove-bg-backend:latest
     container_name: remove-bg-backend-container
-    environment:
-      - GITHUB_REPOSITORY_OWNER=thangdevalone
     expose:
       - "5000"
     networks:
