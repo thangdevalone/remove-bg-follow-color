@@ -15,41 +15,6 @@ Một ứng dụng web để loại bỏ background từ hình ảnh với 2 ph�
 - **High Quality**: Giữ nguyên chất lượng ảnh đầu vào
 - **Download Result**: Tải về ảnh đã xử lý
 
-## Kiến trúc
-
-```
-├── backend/                    # Flask API
-│   ├── app.py                 # Main application
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/                  # Vue.js UI
-│   ├── src/
-│   │   ├── components/        # Reusable components
-│   │   │   ├── ImageUploader.vue
-│   │   │   ├── ProcessingOptions.vue
-│   │   │   ├── ResultDisplay.vue
-│   │   │   └── LoadingSpinner.vue
-│   │   ├── composables/       # Vue 3 composables
-│   │   │   └── useBackgroundRemoval.js
-│   │   ├── utils/            # Helper functions
-│   │   │   └── fileHelpers.js
-│   │   ├── constants/        # App constants
-│   │   │   └── index.js
-│   │   ├── layouts/          # Layout components
-│   │   │   └── BaseLayout.vue
-│   │   ├── views/            # Page components
-│   │   │   └── Home.vue
-│   │   ├── assets/css/       # Tailwind CSS
-│   │   │   └── tailwind.css
-│   │   └── main.js
-│   ├── tailwind.config.js    # Tailwind configuration
-│   ├── postcss.config.js     # PostCSS configuration
-│   ├── package.json
-│   └── Dockerfile
-└── .github/
-    └── workflows/
-        └── deploy.yml        # GitHub Actions CI/CD
-```
 
 ## 🛠️ Công nghệ sử dụng
 
