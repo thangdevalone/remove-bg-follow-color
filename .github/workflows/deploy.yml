@@ -51,8 +51,8 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          source: "docker-compose.yml,nginx/"
-          target: "/opt/remove-bg-app/"
+          source: "docker-compose.yml,nginx/nginx.conf"
+          target: "./"
 
       - name: Deploy with Docker Compose
         uses: appleboy/ssh-action@v0.1.7
@@ -65,16 +65,14 @@ jobs:
             # Login to registry
             echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
-            # Go to app directory
-            cd /opt/remove-bg-app
+            # Create proper symlinks for enabled sites
+            rm -f nginx/sites-enabled/*
+            ln -sf ../sites-available/nginx.conf nginx/sites-enabled/nginx.conf
 
             # Create .env file
             cat > .env <<EOF
             GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
             EOF
-
-            # Create proxy network if not exists
-            docker network create proxy-network 2>/dev/null || echo "Network already exists"
 
             # Stop old containers
             docker-compose down 2>/dev/null || true
