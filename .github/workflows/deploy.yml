@@ -66,8 +66,8 @@ jobs:
             echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
             # Pull latest images and start
-            docker-compose pull
-            docker-compose up -d
+            docker compose pull
+            docker compose up -d
 
             # Show status
             echo "=== Deployment Status ==="
